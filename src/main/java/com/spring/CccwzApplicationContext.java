@@ -30,27 +30,44 @@ public class CccwzApplicationContext {
         for (String beanName:beanDefinitionMap.keySet()){
             BeanDefinition beanDefinition=beanDefinitionMap.get(beanName);
             if (beanDefinition.getScope().equals("singleton")){
-                Object bean = createBean(beanDefinition);  //单例bean
+                Object bean = createBean(beanName,beanDefinition);  //单例bean
                 singletonMap.put(beanName,bean);
             }
         }
 
     }
 
-    public Object createBean(BeanDefinition beanDefinition){
+    public Object createBean(String beanName,BeanDefinition beanDefinition){
         Class clazz = beanDefinition.getClazz();
         try {
             Object instance = clazz.getDeclaredConstructor().newInstance();
 
             //依赖注入
             for(Field declaredField:clazz.getDeclaredFields()){
+                //遍历所有字段，判断是否有@autowired注解
                 if (declaredField.isAnnotationPresent(Autowired.class)){
                     //实现byName注入
                     Object bean = getBean(declaredField.getName());
                     declaredField.setAccessible(true);
+                    //为instance的declaredField字段注入bean对象
                     declaredField.set(instance,bean);
                 }
             }
+            //Aware回调
+            //当前对象是否实现了BeanNameAware接口
+            if (instance instanceof BeanNameAware){
+                ((BeanNameAware) instance).setBeanName(beanName);
+            }
+
+            //初始化
+            if (instance instanceof InitializingBean){
+                try {
+                    ((InitializingBean) instance).afterPropertiesSet();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
             return instance;
         } catch (InstantiationException e) {
             e.printStackTrace();
@@ -145,7 +162,7 @@ public class CccwzApplicationContext {
                 return singletonMap.get(beanName);
             }else {
                 //创建一个bean对象
-               return createBean(beanDefinition);
+               return createBean(beanName,beanDefinition);
             }
         }else{
             //没有对应的bean
